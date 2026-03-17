@@ -1,10 +1,20 @@
 # skill-sidecar
 
-A **sandboxed skill execution framework** for [OpenClaw](https://github.com/openclaw/openclaw) agent, powered by a high-performance **Rust HTTP API** in the sidecar container.
+## What's this
 
-## Concept
+`skill-sidecar` is a sandboxed skill execution framework for AI agents. It runs as a sidecar container alongside your agent, exposing a high-performance **Rust HTTP API** that executes CLI tools and scripts on the agent's behalf.
 
-The agent calls skills via HTTP POST instead of local `exec`. The sidecar is implemented in Rust for minimal latency and maximum throughput.
+The agent never touches credentials or CLI tools directly — it just calls `POST /skill/<name>`.
+
+## Why should I care
+
+Without a sidecar, your agent container needs every CLI tool, secret, and credential baked in. That means:
+
+- A bloated image that's hard to update
+- Credentials co-located with untrusted LLM-generated code
+- No isolation between the reasoning layer and the execution layer
+
+With `skill-sidecar`:
 
 ```
 ┌─────────────────────────┐         ┌──────────────────────────────────────┐
@@ -13,7 +23,7 @@ The agent calls skills via HTTP POST instead of local `exec`. The sidecar is imp
 │  ┌───────────────────┐  │  POST   │  ┌────────────────────────────────┐  │
 │  │ Agent Logic       │──┼────────▶│  │ Rust HTTP Server (Axum/Tokio)  │  │
 │  │                   │  │         │  └───────────────┬────────────────┘  │
-│  │ curl localhost    │  │         │                  │ exec              │
+│  │ curl localhost    │  │         │                  │ execve            │
 │  │   :8080/skill/    │  │  JSON   │  ┌───────────────▼────────────────┐  │
 │  │   <name>          │◀─┼─────────│  │ /usr/local/bin/                │  │
 │  └───────────────────┘  │         │  │  ├── gh                        │  │
@@ -30,9 +40,9 @@ The agent calls skills via HTTP POST instead of local `exec`. The sidecar is imp
                                     └──────────────────────────────────────┘
 ```
 
-## Base Image vs Your Image
+## How it works
 
-`skill-sidecar` ships **no skill binaries**. It is a base image — you bring your own tools:
+`skill-sidecar` is a **base image** — it ships no skill binaries. You bring your own:
 
 ```
 ┌─────────────────────────────────┐
@@ -52,9 +62,9 @@ The agent calls skills via HTTP POST instead of local `exec`. The sidecar is imp
 └─────────────────────────────────┘
 ```
 
-Any executable placed in `/usr/local/bin/` is automatically available for skill dispatch.
+Any executable in `/usr/local/bin/` is automatically available for dispatch.
 
-## API
+### API
 
 ```
 POST /skill/<name>   # execute a skill
@@ -62,8 +72,7 @@ GET  /task/<id>      # poll async task result
 GET  /healthz        # health check
 ```
 
-### Request
-
+**Request:**
 ```json
 {
   "args":    ["arg1", "arg2"],
@@ -73,55 +82,35 @@ GET  /healthz        # health check
 }
 ```
 
-- `args` — passed directly to `/usr/local/bin/<name>` via `execve` (no shell)
-- `env` — **only `SKILL_*` keys accepted**; others are rejected with `400`
-- `stdin` — optional; max 1 MB
-- `timeout` — seconds; default 30, server-side cap 300
+- `env` — only `SKILL_*` keys accepted; others rejected with `400`
+- `timeout` — default 30s, max 300s; requests > 30s return a `task_id` for async polling
+- Request body capped at **1 MB**
 
-### Response (sync)
-
+**Response (sync):**
 ```json
-{
-  "status":    "ok" | "error",
-  "stdout":    "...",
-  "stderr":    "...",
-  "exit_code": 0
-}
+{ "status": "ok", "stdout": "...", "stderr": "...", "exit_code": 0 }
 ```
 
-### Response (async, long-running)
-
+**Response (async):**
 ```json
-{
-  "status":  "pending",
-  "task_id": "550e8400-e29b-41d4-a716-446655440000"
-}
+{ "status": "pending", "task_id": "550e8400-e29b-41d4-a716-446655440000" }
 ```
 
-Poll result via `GET /task/<task_id>`.
-
-## Security
+### Security
 
 | Concern | Mitigation |
 |---------|------------|
-| Credential hijack via `env` | Only `SKILL_*` env keys accepted; all others rejected |
-| Command injection via `args` | Executed with `execve` directly, never via shell |
-| Unauthenticated callers | `X-Skill-Token` shared-secret header (injected via downward API) |
-| Resource exhaustion | Server-side timeout cap (300s); max request body 1 MB |
+| Credential hijack via `env` | Only `SKILL_*` keys accepted |
+| Command injection via `args` | `execve` directly — no shell |
+| Unauthenticated callers | `X-Skill-Token` shared-secret header |
+| Resource exhaustion | 300s timeout cap; 1 MB body limit |
 | Task enumeration | Task IDs are UUID v4 |
 
-## Design Principles
+### Implementation
 
-- Sidecar binds `127.0.0.1` only — not exposed outside the pod
-- Agent container holds **no** credentials or CLI tools
-- Long-running skills are async: POST returns `task_id`, poll via `GET /task/<id>`
-
-## Why Rust
-
-- Minimal overhead per skill invocation
-- Memory-safe sandboxed execution
-- Single static binary — easy to containerize
-- Async-first with [Tokio](https://tokio.rs) + [Axum](https://github.com/tokio-rs/axum)
+- **Rust** + [Axum](https://github.com/tokio-rs/axum) + [Tokio](https://tokio.rs) — async, single static binary
+- Binds `127.0.0.1:8080` only — not exposed outside the pod
+- Completed tasks expire after 1 hour; background reaper runs every 10 minutes
 
 ## Helm
 
