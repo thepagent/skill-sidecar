@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   skill-sidecar:
   - apiVersion: v2
+    appVersion: 0.2.0
+    created: "2026-03-17T18:02:20.640593826Z"
+    description: Sandboxed skill execution sidecar for OpenClaw agent
+    digest: 2321e9088d8df3114933f33383aed8d1c4d5f46ca136c776f792b9ad448f0a64
+    name: skill-sidecar
+    type: application
+    urls:
+    - https://github.com/thepagent/skill-sidecar/releases/download/skill-sidecar-0.2.0/skill-sidecar-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
     appVersion: 0.1.2
     created: "2026-03-17T17:11:50.097758663Z"
     description: Sandboxed skill execution sidecar for OpenClaw agent
@@ -21,4 +31,4 @@ entries:
     urls:
     - https://github.com/thepagent/skill-sidecar/releases/download/skill-sidecar-0.1.1/skill-sidecar-0.1.1.tgz
     version: 0.1.1
-generated: "2026-03-17T17:11:50.097784746Z"
+generated: "2026-03-17T18:02:20.640604436Z"
