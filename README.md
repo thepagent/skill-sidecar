@@ -125,7 +125,14 @@ helm install my-agent skill-sidecar/skill-sidecar \
   --set image.tag=latest \
   --set env.GH_TOKEN=xxx \
   --set skillToken=my-secret
+
+# Validate deployment
+helm test my-agent
 ```
+
+`helm test` verifies:
+1. `/healthz` returns `ok`
+2. Non-`SKILL_*` env keys are rejected with `400`
 
 ## Examples
 
