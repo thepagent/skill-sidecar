@@ -1,0 +1,6 @@
+apiVersion: v2
+name: skill-sidecar
+description: Sandboxed skill execution sidecar for OpenClaw agent
+type: application
+version: 0.1.0
+appVersion: "main"

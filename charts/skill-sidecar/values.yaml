@@ -1,0 +1,26 @@
+# Image to use — override with your custom sidecar image
+image:
+  repository: ghcr.io/thepagent/skill-sidecar
+  tag: main
+  pullPolicy: IfNotPresent
+
+# Bind address (always 127.0.0.1 for sidecar use)
+port: 8080
+
+# Optional shared-secret auth token
+skillToken: ""
+
+# Extra env vars injected into the sidecar (e.g. credentials)
+# env:
+#   GH_TOKEN: ""
+#   AWS_ACCESS_KEY_ID: ""
+env: {}
+
+# Resource limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

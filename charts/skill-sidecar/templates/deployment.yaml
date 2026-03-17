@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skill-sidecar.fullname" . }}
+  labels:
+    app: {{ include "skill-sidecar.fullname" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "skill-sidecar.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "skill-sidecar.fullname" . }}
+    spec:
+      containers:
+        - name: skill-sidecar
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          env:
+            {{- if .Values.skillToken }}
+            - name: SKILL_TOKEN
+              value: {{ .Values.skillToken | quote }}
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
