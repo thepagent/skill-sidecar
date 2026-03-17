@@ -123,10 +123,34 @@ Poll result via `GET /task/<task_id>`.
 - Single static binary — easy to containerize
 - Async-first with [Tokio](https://tokio.rs) + [Axum](https://github.com/tokio-rs/axum)
 
+## Helm
+
+```bash
+helm repo add skill-sidecar https://thepagent.github.io/skill-sidecar
+helm repo update
+helm install my-agent skill-sidecar/skill-sidecar
+
+# Use your own image (e.g. with yt-dlp bundled)
+helm install my-agent skill-sidecar/skill-sidecar \
+  --set image.repository=myrepo/my-sidecar \
+  --set image.tag=latest \
+  --set env.GH_TOKEN=xxx \
+  --set skillToken=my-secret
+```
+
+## Examples
+
+| Example | Description |
+|---------|-------------|
+| [`examples/with-yt-dlp`](examples/with-yt-dlp) | Base image + yt-dlp |
+| [`examples/with-gh`](examples/with-gh) | Base image + GitHub CLI |
+
 ## Structure
 
 ```
 skill-sidecar/
 ├── src/           # Rust HTTP server (Axum)
+├── examples/      # Sample custom images
+├── charts/        # Helm chart
 └── Dockerfile
 ```

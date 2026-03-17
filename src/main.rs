@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     process::Stdio,
     sync::Arc,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -16,6 +16,8 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 use uuid::Uuid;
+
+const TASK_TTL: Duration = Duration::from_secs(3600); // 1 hour
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +44,7 @@ enum SkillResponse {
     Pending { task_id: String },
 }
 
-type TaskStore = Arc<DashMap<String, SkillResponse>>;
+type TaskStore = Arc<DashMap<String, (SkillResponse, Instant)>>;
 
 #[derive(Clone)]
 struct AppState {
@@ -100,7 +102,7 @@ async fn run_skill(
         let tid = task_id.clone();
         tokio::spawn(async move {
             let result = exec(&binary, &args, &env, stdin_data, secs).await;
-            tasks.insert(tid, result);
+            tasks.insert(tid, (result, Instant::now()));
         });
         return (StatusCode::ACCEPTED, Json(SkillResponse::Pending { task_id })).into_response();
     }
@@ -118,7 +120,8 @@ async fn poll_task(
         return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error":"unauthorized"}))).into_response();
     }
     match state.tasks.get(&id) {
-        Some(r) => (StatusCode::OK, Json(r.clone())).into_response(),
+        Some(r) if r.1.elapsed() < TASK_TTL => (StatusCode::OK, Json(r.0.clone())).into_response(),
+        Some(_) => { state.tasks.remove(&id); (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"task expired"}))).into_response() }
         None => (StatusCode::NOT_FOUND, Json(serde_json::json!({"error":"task not found"}))).into_response(),
     }
 }
@@ -176,6 +179,15 @@ async fn main() {
         tasks: Arc::new(DashMap::new()),
         skill_token: std::env::var("SKILL_TOKEN").ok(),
     };
+
+    // Background task reaper — evict expired entries every 10 minutes
+    let reaper_tasks = state.tasks.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(600)).await;
+            reaper_tasks.retain(|_, (_, ts)| ts.elapsed() < TASK_TTL);
+        }
+    });
 
     let app = Router::new()
         .route("/healthz", get(healthz))
