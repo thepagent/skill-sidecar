@@ -15,6 +15,7 @@ use axum::{
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
+use tower_http::limit::RequestBodyLimitLayer;
 use uuid::Uuid;
 
 const TASK_TTL: Duration = Duration::from_secs(3600); // 1 hour
@@ -193,6 +194,7 @@ async fn main() {
         .route("/healthz", get(healthz))
         .route("/skill/:name", post(run_skill))
         .route("/task/:id", get(poll_task))
+        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1 MB
         .with_state(state);
 
     let addr = "127.0.0.1:8080";
