@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "skill-sidecar.fullname" . }}-test
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: test
+      image: curlimages/curl:latest
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          # healthz
+          curl -sf http://{{ include "skill-sidecar.fullname" . }}:{{ .Values.port }}/healthz | grep -q ok
+          echo "healthz: ok"
+
+          # invalid env key must return 400
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://{{ include "skill-sidecar.fullname" . }}:{{ .Values.port }}/skill/echo \
+            -H "Content-Type: application/json" \
+            -d '{"env":{"AWS_SECRET":"leak"}}')
+          [ "$STATUS" = "400" ] && echo "env guard: ok" || (echo "env guard: FAILED (got $STATUS)"; exit 1)
