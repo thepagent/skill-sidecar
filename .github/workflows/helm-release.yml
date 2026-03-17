@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths: [charts/**]
+    tags: ["v*"]
 
 jobs:
   release:
